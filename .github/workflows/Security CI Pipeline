@@ -8,7 +8,7 @@ on:
 env:
   IMAGE_NAME: narsi421/juice-shop
   SONAR_PROJECT_KEY: juice-shop
-  SONAR_PROJECT_NAME: JuiceShop
+  SONAR_PROJECT_NAME: juiceShop
   SONAR_URL: ${{ secrets.SONAR_URL }}
   DEFECTDOJO_URL: ${{ secrets.DEFECTDOJO_URL }}
   DEFECTDOJO_ENGAGEMENT_ID: 3
