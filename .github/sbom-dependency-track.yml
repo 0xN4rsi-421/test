@@ -1,0 +1,70 @@
+name: SBOM → Dependency-Track (Test)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: Test
+  PROJECT_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  sbom-test:
+    runs-on: self-hosted
+
+    steps:
+      # -------------------------------------------------
+      # Checkout source
+      # -------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------
+      # Build Docker image (SBOM source)
+      # -------------------------------------------------
+      - name: Build Docker Image
+        run: |
+          docker build -t ${IMAGE_NAME}:sbom-test .
+
+      # -------------------------------------------------
+      # Generate SBOM (CycloneDX – Dependency-Track compatible)
+      # -------------------------------------------------
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v ${{ github.workspace }}:/scan \
+            aquasec/trivy:0.50.1 image \
+            --format cyclonedx \
+            --output /scan/sbom.json \
+            ${IMAGE_NAME}:sbom-test
+
+      # -------------------------------------------------
+      # Validate SBOM format (cheap guard)
+      # -------------------------------------------------
+      - name: Validate SBOM format
+        run: |
+          echo "Validating CycloneDX SBOM..."
+          grep -q '"bomFormat"' sbom.json
+          grep -q '"specVersion"' sbom.json
+          echo "SBOM looks valid"
+
+      # -------------------------------------------------
+      # Upload SBOM to Dependency-Track
+      # -------------------------------------------------
+      - name: Upload SBOM to Dependency-Track
+        run: |
+          curl -X POST "${{ secrets.DEPENDENCYTRACK_URL }}/api/v1/bom" \
+            -H "X-Api-Key: ${{ secrets.DEPENDENCYTRACK_API_KEY }}" \
+            -F "autoCreate=true" \
+            -F "projectName=${PROJECT_NAME}" \
+            -F "projectVersion=main" \
+            -F "bom=@sbom.json"
+
+      # -------------------------------------------------
+      # Cleanup
+      # -------------------------------------------------
+      - name: Cleanup
+        run: |
+          docker rmi ${IMAGE_NAME}:sbom-test || true
